@@ -1,8 +1,10 @@
-from fastapi import FastAPI, Depends, HTTPException
+from fastapi import FastAPI, Depends, HTTPException, BackgroundTasks
+from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from typing import List, Optional
 import uuid
+import asyncio
 
 from . import models, schemas, database, odds_service
 from .database import engine, get_db
@@ -11,10 +13,20 @@ models.Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="Sports Betting POS Backend")
 
+# Enable CORS for React frontend
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 @app.on_event("startup")
-def startup_event():
+async def startup_event():
     db = next(get_db())
-    odds_service.fetch_and_update_odds(db)
+    # Initial sync in background to not block startup
+    asyncio.create_task(odds_service.fetch_and_update_odds(db))
 
 @app.get("/sports")
 def list_sports(db: Session = Depends(get_db)):
@@ -86,8 +98,8 @@ def deposit(amount: float, db: Session = Depends(get_db)):
     return {"message": "Deposit successful"}
 
 @app.post("/settle")
-def settle_all_bets(db: Session = Depends(get_db)):
-    success = odds_service.fetch_results(db)
+async def settle_all_bets(db: Session = Depends(get_db)):
+    success = await odds_service.fetch_results(db)
     if success:
         return {"message": "Settlement process completed"}
     else:
@@ -101,6 +113,6 @@ def get_bet_by_ticket(ticket_id: str, db: Session = Depends(get_db)):
     return bet
 
 @app.post("/refresh")
-def refresh_odds(db: Session = Depends(get_db)):
-    success = odds_service.fetch_and_update_odds(db)
+async def refresh_odds(db: Session = Depends(get_db)):
+    success = await odds_service.fetch_and_update_odds(db)
     return {"success": success}

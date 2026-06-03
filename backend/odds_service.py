@@ -1,5 +1,6 @@
-import requests
+import httpx
 import os
+import asyncio
 from dotenv import load_dotenv
 from . import models
 from datetime import datetime, timezone
@@ -10,7 +11,6 @@ load_dotenv()
 API_KEY = os.getenv("THE_ODDS_API_KEY")
 BASE_URL = "https://api.the-odds-api.com/v4/sports"
 
-# Expanded list of popular sports/leagues
 POPULAR_SPORTS = [
     "soccer_spain_la_liga",
     "soccer_uefa_champs_league",
@@ -24,24 +24,31 @@ POPULAR_SPORTS = [
     "icehockey_nhl"
 ]
 
-def fetch_and_update_odds(db):
+# In-memory cache to speed up reads
+cache = {
+    "sports": None,
+    "odds": {}, # event_id: odds_data
+    "last_sync": None
+}
+
+async def fetch_and_update_odds(db):
     if not API_KEY:
-        print("API Key not found")
         return False
 
-    try:
+    async with httpx.AsyncClient() as client:
+        tasks = []
         for sport in POPULAR_SPORTS:
             url = f"{BASE_URL}/{sport}/odds/?regions=eu,us&markets=h2h&apiKey={API_KEY}"
-            response = requests.get(url)
-            if response.status_code == 200:
-                data = response.json()
-                update_db_with_data(db, data)
-            else:
-                print(f"Error fetching {sport}: {response.status_code}")
+            tasks.append(client.get(url))
+
+        responses = await asyncio.gather(*tasks, return_exceptions=True)
+
+        for response in responses:
+            if isinstance(response, httpx.Response) and response.status_code == 200:
+                update_db_with_data(db, response.json())
+
+        cache["last_sync"] = datetime.now(timezone.utc)
         return True
-    except Exception as e:
-        print(f"Error updating odds: {e}")
-        return False
 
 def update_db_with_data(db, data):
     for item in data:
@@ -84,7 +91,6 @@ def update_db_with_data(db, data):
                             )
                             db.add(odds)
                         else:
-                            odds.bookmaker = bm["title"]
                             odds.home_price = home_price
                             odds.away_price = away_price
                             odds.draw_price = draw_price
@@ -93,19 +99,19 @@ def update_db_with_data(db, data):
                         continue
     db.commit()
 
-def fetch_results(db):
+async def fetch_results(db):
     try:
-        # Check results for all events currently in DB that are past their commence time
         now = datetime.now(timezone.utc)
         events_to_check = db.query(models.Event).filter(models.Event.commence_time < now).all()
-        sports_to_check = set(e.sport_key for e in events_to_check)
+        sports_to_check = list(set(e.sport_key for e in events_to_check))
 
-        for sport in sports_to_check:
-            url = f"{BASE_URL}/{sport}/scores/?daysFrom=3&apiKey={API_KEY}"
-            response = requests.get(url)
-            if response.status_code == 200:
-                results = response.json()
-                settle_bets(db, results)
+        async with httpx.AsyncClient() as client:
+            tasks = [client.get(f"{BASE_URL}/{sport}/scores/?daysFrom=3&apiKey={API_KEY}") for sport in sports_to_check]
+            responses = await asyncio.gather(*tasks, return_exceptions=True)
+
+            for response in responses:
+                if isinstance(response, httpx.Response) and response.status_code == 200:
+                    settle_bets(db, response.json())
         return True
     except Exception as e:
         print(f"Error fetching results: {e}")
