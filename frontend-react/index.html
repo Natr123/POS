@@ -8,6 +8,21 @@
     <style>
       .no-scrollbar::-webkit-scrollbar { display: none; }
       .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+      @media print {
+        body * {
+          visibility: hidden;
+        }
+        #printable-ticket, #printable-ticket * {
+          visibility: visible;
+        }
+        #printable-ticket {
+          position: fixed;
+          left: 0;
+          top: 0;
+          width: 100%;
+        }
+      }
     </style>
   </head>
   <body class="bg-[#121212]">

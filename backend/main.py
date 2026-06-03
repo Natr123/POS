@@ -44,7 +44,7 @@ def read_odds(event_id: str, db: Session = Depends(get_db)):
     odds = db.query(models.Odds).filter(models.Odds.event_id == event_id).first()
     if not odds:
         raise HTTPException(status_code=404, detail="Odds not found")
-    return odds
+    return odds.markets_data
 
 @app.post("/bets", response_model=schemas.BetResponse)
 def create_bet(bet: schemas.BetCreate, db: Session = Depends(get_db)):
@@ -81,7 +81,6 @@ def cancel_bet(ticket_id: str, db: Session = Depends(get_db)):
     if bet.status != models.BetStatus.PENDING:
         raise HTTPException(status_code=400, detail="Solo se pueden cancelar apuestas pendientes")
 
-    # Check time window (e.g., 5 minutes)
     if datetime.now(timezone.utc) - bet.created_at.replace(tzinfo=timezone.utc) > timedelta(minutes=5):
          raise HTTPException(status_code=400, detail="Tiempo de cancelación expirado (5 min)")
 

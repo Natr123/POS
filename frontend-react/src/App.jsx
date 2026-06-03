@@ -89,7 +89,7 @@ function App() {
       const res = await axios.post(`${API_URL}/bets`, {
         event_id: betSlip.id,
         event_name: betSlip.name,
-        selection: betSlip.sel,
+        selection: betSlip.market + ': ' + betSlip.sel,
         odds: betSlip.price,
         stake: parseFloat(stake)
       });
@@ -121,7 +121,7 @@ function App() {
     <div className="min-h-screen bg-[#0a0a0a] text-white font-sans pb-24 selection:bg-primary/30">
       {printTicket && (
         <div className="fixed inset-0 bg-black z-[100] flex flex-col items-center justify-center p-4 print:p-0 print:static print:bg-white print:text-black">
-          <div className="bg-white text-black p-8 rounded-lg shadow-2xl w-full max-w-sm font-mono text-sm print:shadow-none print:w-full">
+          <div id="printable-ticket" className="bg-white text-black p-8 rounded-lg shadow-2xl w-full max-w-sm font-mono text-sm print:shadow-none print:w-full">
             <div className="text-center border-b border-dashed border-black pb-4 mb-4">
               <h2 className="text-xl font-bold uppercase tracking-widest">SportPOS Pro</h2>
               <p>Ticket No: {printTicket.ticket_id}</p>
@@ -130,7 +130,6 @@ function App() {
             <div className="space-y-2 mb-4">
               <p className="font-bold">{printTicket.event_name}</p>
               <div className="flex justify-between">
-                <span>Selección:</span>
                 <span className="font-bold">{printTicket.selection}</span>
               </div>
               <div className="flex justify-between">
@@ -214,10 +213,39 @@ function App() {
                       <div className="text-gray-600 font-black text-xs italic">VS</div>
                       <div className="flex-1 text-left font-bold text-sm">{ev.away_team}</div>
                     </div>
-                    <div className="grid grid-cols-3 gap-3">
-                      <OddBtn label="LOCAL" price={odds[ev.id]?.home_price} onClick={() => setBetSlip({id: ev.id, name: `${ev.home_team} vs ${ev.away_team}`, sel: ev.home_team, price: odds[ev.id]?.home_price})} />
-                      <OddBtn label="EMPATE" price={odds[ev.id]?.draw_price} onClick={() => setBetSlip({id: ev.id, name: `${ev.home_team} vs ${ev.away_team}`, sel: 'Draw', price: odds[ev.id]?.draw_price})} />
-                      <OddBtn label="VISITA" price={odds[ev.id]?.away_price} onClick={() => setBetSlip({id: ev.id, name: `${ev.home_team} vs ${ev.away_team}`, sel: ev.away_team, price: odds[ev.id]?.away_price})} />
+
+                    {/* Market Tabs/Sections */}
+                    <div className="space-y-4">
+                        {odds[ev.id]?.h2h && (
+                            <div>
+                                <div className="text-[8px] font-bold text-gray-600 mb-2 tracking-widest">LÍNEA DE DINERO</div>
+                                <div className="grid grid-cols-3 gap-3">
+                                    <OddBtn label="LOCAL" price={odds[ev.id].h2h.home} onClick={() => setBetSlip({id: ev.id, name: `${ev.home_team} vs ${ev.away_team}`, market: 'Moneyline', sel: ev.home_team, price: odds[ev.id].h2h.home})} />
+                                    <OddBtn label="EMPATE" price={odds[ev.id].h2h.draw} onClick={() => setBetSlip({id: ev.id, name: `${ev.home_team} vs ${ev.away_team}`, market: 'Moneyline', sel: 'Draw', price: odds[ev.id].h2h.draw})} />
+                                    <OddBtn label="VISITA" price={odds[ev.id].h2h.away} onClick={() => setBetSlip({id: ev.id, name: `${ev.home_team} vs ${ev.away_team}`, market: 'Moneyline', sel: ev.away_team, price: odds[ev.id].h2h.away})} />
+                                </div>
+                            </div>
+                        )}
+                        <div className="grid grid-cols-2 gap-4">
+                            {odds[ev.id]?.spreads && (
+                                <div>
+                                    <div className="text-[8px] font-bold text-gray-600 mb-2 tracking-widest">HÁNDICAP</div>
+                                    <div className="space-y-2">
+                                        <OddBtn label={odds[ev.id].spreads.home_name + ' ' + odds[ev.id].spreads.home_point} price={odds[ev.id].spreads.home_price} onClick={() => setBetSlip({id: ev.id, name: `${ev.home_team} vs ${ev.away_team}`, market: 'Handicap', sel: odds[ev.id].spreads.home_name + ' ' + odds[ev.id].spreads.home_point, price: odds[ev.id].spreads.home_price})} />
+                                        <OddBtn label={odds[ev.id].spreads.away_name + ' ' + odds[ev.id].spreads.away_point} price={odds[ev.id].spreads.away_price} onClick={() => setBetSlip({id: ev.id, name: `${ev.home_team} vs ${ev.away_team}`, market: 'Handicap', sel: odds[ev.id].spreads.away_name + ' ' + odds[ev.id].spreads.away_point, price: odds[ev.id].spreads.away_price})} />
+                                    </div>
+                                </div>
+                            )}
+                            {odds[ev.id]?.totals && (
+                                <div>
+                                    <div className="text-[8px] font-bold text-gray-600 mb-2 tracking-widest">MÁS/MENOS</div>
+                                    <div className="space-y-2">
+                                        <OddBtn label={'MÁS DE ' + odds[ev.id].totals.point} price={odds[ev.id].totals.over_price} onClick={() => setBetSlip({id: ev.id, name: `${ev.home_team} vs ${ev.away_team}`, market: 'Over', sel: 'Over ' + odds[ev.id].totals.point, price: odds[ev.id].totals.over_price})} />
+                                        <OddBtn label={'MENOS DE ' + odds[ev.id].totals.point} price={odds[ev.id].totals.under_price} onClick={() => setBetSlip({id: ev.id, name: `${ev.home_team} vs ${ev.away_team}`, market: 'Under', sel: 'Under ' + odds[ev.id].totals.point, price: odds[ev.id].totals.under_price})} />
+                                    </div>
+                                </div>
+                            )}
+                        </div>
                     </div>
                   </div>
                 ))}
@@ -236,7 +264,7 @@ function App() {
                             <div>
                                 <div className="text-[10px] font-bold text-gray-500 mb-1">TICKET: {bet.ticket_id}</div>
                                 <div className="font-bold text-sm">{bet.event_name}</div>
-                                <div className="text-xs text-gray-400">{bet.selection} @ {bet.odds}</div>
+                                <div className="text-xs text-primary font-bold">{bet.selection} @ {bet.odds}</div>
                             </div>
                             <div className="text-right">
                                 <div className={`text-[10px] font-black px-2 py-0.5 rounded inline-block mb-1 ${
@@ -309,9 +337,10 @@ function App() {
 
             <div className="bg-white/5 p-6 rounded-3xl mb-8 border border-white/5">
               <div className="text-gray-500 text-xs font-bold mb-2 uppercase">{betSlip.name}</div>
+              <div className="text-[10px] font-bold text-primary tracking-widest mb-1">{betSlip.market.toUpperCase()}</div>
               <div className="flex justify-between items-end">
-                <div className="text-xl font-black text-primary uppercase">{betSlip.sel}</div>
-                <div className="text-2xl font-mono font-black">x{betSlip.price}</div>
+                <div className="text-xl font-black text-white uppercase">{betSlip.sel}</div>
+                <div className="text-2xl font-mono font-black text-primary">x{betSlip.price}</div>
               </div>
             </div>
 
@@ -347,10 +376,10 @@ function App() {
 }
 
 function OddBtn({ label, price, onClick }) {
-  if (!price) return <div className="bg-white/2 rounded-xl py-4 border border-white/5 opacity-10"></div>;
+  if (!price) return <div className="bg-white/2 rounded-xl py-4 border border-white/5 opacity-10 flex items-center justify-center"><span className="text-[8px] text-gray-700 font-bold tracking-widest">-</span></div>;
   return (
-    <button onClick={onClick} className="group bg-white/5 rounded-xl py-4 border border-white/5 active:bg-primary active:border-primary transition-all flex flex-col items-center gap-1 hover:bg-white/10">
-      <div className="text-[8px] text-gray-500 font-black tracking-widest group-active:text-white/70">{label}</div>
+    <button onClick={onClick} className="group bg-white/5 rounded-xl py-4 border border-white/5 active:bg-primary active:border-primary transition-all flex flex-col items-center gap-1 hover:bg-white/10 overflow-hidden">
+      <div className="text-[8px] text-gray-500 font-black tracking-widest group-active:text-white/70 px-1 truncate w-full text-center">{label}</div>
       <div className="text-lg font-mono font-black group-active:scale-110 transition-transform">{price}</div>
     </button>
   );
