@@ -8,86 +8,51 @@ import json
 
 load_dotenv()
 
-API_KEY = os.getenv("THE_ODDS_API_KEY")
+API_KEY = "2e5fa03c199ce594cc93f00930cae020"
 BASE_URL = "https://api.the-odds-api.com/v4/sports"
 
-# Structured categories for UI and API
-SPORTS_STRUCTURE = {
-    "⚽ Fútbol": [
-        ("soccer_epl", "Premier League"),
-        ("soccer_spain_la_liga", "LaLiga"),
-        ("soccer_italy_serie_a", "Serie A"),
-        ("soccer_germany_bundesliga", "Bundesliga"),
-        ("soccer_france_ligue_one", "Ligue 1"),
-        ("soccer_uefa_champs_league", "Champions League"),
-        ("soccer_international", "Selecciones / Torneos")
-    ],
-    "🏀 Baloncesto": [
-        ("basketball_nba", "NBA"),
-        ("basketball_ncaab", "NCAA"),
-        ("basketball_euroleague", "Euroliga")
-    ],
-    "🎾 Tenis": [
-        ("tennis_atp", "ATP"),
-        ("tennis_wta", "WTA"),
-        ("tennis_itf_men", "ITF Men"),
-        ("tennis_itf_women", "ITF Women")
-    ],
-    "🏒 Hockey": [
-        ("icehockey_nhl", "NHL"),
-        ("icehockey_sweden_allsvenskan", "Allsvenskan"),
-        ("icehockey_finland_mestis", "Mestis")
-    ],
-    "🏈 Fútbol Am.": [
-        ("americanfootball_nfl", "NFL"),
-        ("americanfootball_ncaaf", "NCAAF")
-    ],
-    "⚾ Béisbol": [
-        ("baseball_mlb", "MLB"),
-        ("baseball_npb", "NPB"),
-        ("baseball_kbo", "KBO")
-    ],
-    "🏎️ Motor": [
-        ("motorsport_formula1", "F1"),
-        ("motorsport_moto_gp", "MotoGP")
-    ],
-    "🥊 Combate": [
-        ("mma_mixed_martial_arts", "MMA"),
-        ("boxing", "Boxeo")
-    ],
-    "🏇 Carreras": [
-        ("horse_racing", "Caballos"),
-        ("greyhound_racing", "Galgos")
-    ],
-    "🎮 eSports": [
-        ("esports_csgo", "CS2 / CS:GO"),
-        ("esports_dota2", "Dota 2"),
-        ("esports_league_of_legends", "LoL"),
-        ("esports_valorant", "Valorant")
-    ],
-    "🧠 Otros": [
-        ("golf_pga", "PGA Golf"),
-        ("rugby_union", "Rugby Union"),
-        ("rugby_league", "Rugby League"),
-        ("cricket_international", "Cricket"),
-        ("darts", "Dardos"),
-        ("snooker", "Snooker")
-    ]
-}
+async def sync_sports(db):
+    url = f"{BASE_URL}?apiKey={API_KEY}&all=true"
+    async with httpx.AsyncClient() as client:
+        try:
+            resp = await client.get(url)
+            if resp.status_code == 200:
+                data = resp.json()
+                for item in data:
+                    sport = db.query(models.Sport).filter(models.Sport.key == item["key"]).first()
+                    if not sport:
+                        sport = models.Sport(
+                            key=item["key"],
+                            group=item["group"],
+                            title=item["title"],
+                            description=item["description"],
+                            active=item["active"],
+                            has_outrights=item["has_outrights"]
+                        )
+                        db.add(sport)
+                    else:
+                        sport.active = item["active"]
+                        sport.group = item["group"]
+                        sport.title = item["title"]
+                db.commit()
+                return True
+        except Exception as e:
+            print(f"Error syncing sports: {e}")
+            return False
 
 async def fetch_and_update_odds(db):
     if not API_KEY: return False
 
-    # Collect all unique keys from structure
-    all_keys = []
-    for cat in SPORTS_STRUCTURE.values():
-        for key, name in cat:
-            all_keys.append(key)
+    # Ensure sports are synced
+    await sync_sports(db)
+
+    # Get active sports only
+    active_sports = db.query(models.Sport).filter(models.Sport.active == True).all()
 
     async with httpx.AsyncClient() as client:
         tasks = []
-        for sport in all_keys:
-            url = f"{BASE_URL}/{sport}/odds/?regions=us,eu&markets=h2h,spreads,totals&apiKey={API_KEY}"
+        for s in active_sports:
+            url = f"{BASE_URL}/{s.key}/odds/?regions=us,eu&markets=h2h,spreads,totals&apiKey={API_KEY}"
             tasks.append(client.get(url))
 
         responses = await asyncio.gather(*tasks, return_exceptions=True)
@@ -101,7 +66,6 @@ def update_db_with_data(db, data):
     for item in data:
         try:
             commence_time = datetime.fromisoformat(item["commence_time"].replace("Z", "+00:00"))
-
             event = db.query(models.Event).filter(models.Event.id == item["id"]).first()
             if not event:
                 event = models.Event(
@@ -115,7 +79,6 @@ def update_db_with_data(db, data):
                 db.add(event)
             else:
                 event.commence_time = commence_time
-                event.sport_title = item["sport_title"]
 
             if item.get("bookmakers"):
                 bm = item["bookmakers"][0]
@@ -169,10 +132,7 @@ async def fetch_results(db):
             responses = await asyncio.gather(*tasks, return_exceptions=True)
             for response in responses:
                 if isinstance(response, httpx.Response) and response.status_code == 200:
-                    settle_bets(db, response.json())
+                    # settlement logic here
+                    pass
         return True
     except Exception: return False
-
-def settle_bets(db, results):
-    # Simplified settlement
-    pass

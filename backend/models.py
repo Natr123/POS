@@ -1,4 +1,5 @@
-from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey, Enum, JSON
+from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey, Enum, JSON, Boolean
+from sqlalchemy.orm import relationship
 from sqlalchemy.ext.declarative import declarative_base
 from datetime import datetime, timezone
 import enum
@@ -11,10 +12,19 @@ class BetStatus(enum.Enum):
     LOST = "lost"
     CANCELLED = "cancelled"
 
+class Sport(Base):
+    __tablename__ = "sports"
+    key = Column(String, primary_key=True)
+    group = Column(String) # Soccer, Basketball, etc.
+    title = Column(String)
+    description = Column(String)
+    active = Column(Boolean)
+    has_outrights = Column(Boolean)
+
 class Event(Base):
     __tablename__ = "events"
     id = Column(String, primary_key=True)
-    sport_key = Column(String)
+    sport_key = Column(String, ForeignKey("sports.key"))
     sport_title = Column(String)
     commence_time = Column(DateTime)
     home_team = Column(String)
@@ -31,8 +41,6 @@ class Odds(Base):
 class Bet(Base):
     __tablename__ = "bets"
     id = Column(Integer, primary_key=True, index=True)
-    # Changed to JSON for multiple selections
-    # [{ "event_id": "...", "event_name": "...", "selection": "...", "odds": 2.0 }]
     selections = Column(JSON)
     total_odds = Column(Float)
     stake = Column(Float)

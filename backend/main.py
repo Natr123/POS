@@ -31,11 +31,21 @@ app.add_middleware(
 @app.on_event("startup")
 async def startup_event():
     db = next(get_db())
+    # Full sync on startup
     asyncio.create_task(odds_service.fetch_and_update_odds(db))
 
 @app.get("/sports")
 def list_sports_categorized(db: Session = Depends(get_db)):
-    return odds_service.SPORTS_STRUCTURE
+    # Fetch all sports from DB grouped by 'group'
+    # Only return structure for active ones, but we have all
+    sports = db.query(models.Sport).all()
+    structure = {}
+    for s in sports:
+        if s.group not in structure:
+            structure[s.group] = []
+        # Return [key, title, active]
+        structure[s.group].append([s.key, s.title, s.active])
+    return structure
 
 @app.get("/events", response_model=List[schemas.EventBase])
 def read_events(sport_key: Optional[str] = None, db: Session = Depends(get_db)):
@@ -121,13 +131,7 @@ def get_bet_pdf(ticket_id: str, db: Session = Depends(get_db)):
     c.showPage()
     c.save()
     buffer.seek(0)
-    return Response(
-        content=buffer.getvalue(),
-        media_type="application/pdf",
-        headers={
-            "Content-Disposition": f"inline; filename=ticket_{ticket_id}.pdf"
-        }
-    )
+    return Response(content=buffer.getvalue(), media_type="application/pdf", headers={"Content-Disposition": f"inline; filename=ticket_{ticket_id}.pdf"})
 
 @app.get("/bets", response_model=List[schemas.BetResponse])
 def read_bets(db: Session = Depends(get_db)):
