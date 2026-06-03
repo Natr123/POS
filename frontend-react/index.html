@@ -10,23 +10,40 @@
       .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 
       @media print {
-        body * {
-          visibility: hidden;
+        /* Hide everything by default */
+        body {
+          background: white !important;
+          color: black !important;
+          margin: 0 !important;
+          padding: 0 !important;
         }
-        #printable-ticket, #printable-ticket * {
-          visibility: visible;
+        #root {
+          display: none !important;
         }
         #printable-ticket {
-          position: fixed;
-          left: 0;
-          top: 0;
-          width: 100%;
+          display: block !important;
+          visibility: visible !important;
+          width: 80mm !important; /* Standard thermal printer width */
+          margin: 0 auto !important;
+          padding: 5mm !important;
+          position: absolute !important;
+          top: 0 !important;
+          left: 0 !important;
+          right: 0 !important;
         }
+        .no-print {
+          display: none !important;
+        }
+      }
+
+      #printable-ticket {
+        display: none;
       }
     </style>
   </head>
-  <body class="bg-[#121212]">
+  <body class="bg-[#0a0a0a]">
     <div id="root"></div>
+    <!-- The printable ticket will be rendered here by React Portal or just placed outside root for simplicity if needed, but Portal is better. Actually, placing it outside root and controlling it via global state or just having it inside and using display:block in print works too. -->
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>
