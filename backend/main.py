@@ -1,4 +1,5 @@
 from fastapi import FastAPI, Depends, HTTPException, BackgroundTasks
+from fastapi.responses import Response
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from sqlalchemy import func
@@ -6,6 +7,11 @@ from typing import List, Optional
 import uuid
 import asyncio
 from datetime import datetime, timezone, timedelta
+import io
+
+from reportlab.pdfgen import canvas
+from reportlab.lib.pagesizes import mm
+from reportlab.lib.units import mm as unit_mm
 
 from . import models, schemas, database, odds_service
 from .database import engine, get_db
@@ -72,6 +78,58 @@ def create_bet(bet: schemas.BetCreate, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(db_bet)
     return db_bet
+
+@app.get("/bets/{ticket_id}/pdf")
+def get_bet_pdf(ticket_id: str, db: Session = Depends(get_db)):
+    bet = db.query(models.Bet).filter(models.Bet.ticket_id == ticket_id).first()
+    if not bet:
+        raise HTTPException(status_code=404, detail="Ticket no encontrado")
+
+    buffer = io.BytesIO()
+    # Thermal printer standard size: 80mm width, dynamic height
+    p_width = 80 * unit_mm
+    p_height = 120 * unit_mm
+    c = canvas.Canvas(buffer, pagesize=(p_width, p_height))
+
+    c.setFont("Helvetica-Bold", 14)
+    c.drawCentredString(40 * unit_mm, 110 * unit_mm, "SPORTPOS PRO")
+
+    c.setFont("Helvetica", 8)
+    c.drawCentredString(40 * unit_mm, 105 * unit_mm, f"TICKET: {bet.ticket_id}")
+    c.drawCentredString(40 * unit_mm, 102 * unit_mm, f"FECHA: {bet.created_at.strftime('%Y-%m-%d %H:%M:%S')}")
+
+    c.line(5 * unit_mm, 98 * unit_mm, 75 * unit_mm, 98 * unit_mm)
+
+    c.setFont("Helvetica-Bold", 10)
+    # Wrap text for event name if too long
+    ev_name = bet.event_name[:30] + "..." if len(bet.event_name) > 30 else bet.event_name
+    c.drawCentredString(40 * unit_mm, 92 * unit_mm, ev_name)
+
+    c.setFont("Helvetica", 9)
+    c.drawString(10 * unit_mm, 85 * unit_mm, "SELECCION:")
+    c.drawRightString(70 * unit_mm, 85 * unit_mm, bet.selection[:25])
+
+    c.drawString(10 * unit_mm, 80 * unit_mm, "CUOTA:")
+    c.drawRightString(70 * unit_mm, 80 * unit_mm, f"x{bet.odds}")
+
+    c.drawString(10 * unit_mm, 75 * unit_mm, "APUESTA:")
+    c.drawRightString(70 * unit_mm, 75 * unit_mm, f"${bet.stake:.2f}")
+
+    c.setFont("Helvetica-Bold", 12)
+    c.drawString(10 * unit_mm, 65 * unit_mm, "PREMIO:")
+    c.drawRightString(70 * unit_mm, 65 * unit_mm, f"${bet.potential_payout:.2f}")
+
+    c.line(5 * unit_mm, 60 * unit_mm, 75 * unit_mm, 60 * unit_mm)
+
+    c.setFont("Helvetica-Oblique", 7)
+    c.drawCentredString(40 * unit_mm, 50 * unit_mm, "CONSERVE ESTE TICKET PARA COBRAR")
+    c.drawCentredString(40 * unit_mm, 46 * unit_mm, "GRACIAS POR SU PREFERENCIA")
+
+    c.showPage()
+    c.save()
+
+    buffer.seek(0)
+    return Response(content=buffer.getvalue(), media_type="application/pdf", headers={"Content-Disposition": f"inline; filename=ticket_{ticket_id}.pdf"})
 
 @app.post("/bets/{ticket_id}/cancel")
 def cancel_bet(ticket_id: str, db: Session = Depends(get_db)):
