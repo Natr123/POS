@@ -77,3 +77,18 @@ def deposit(amount: float, db: Session = Depends(get_db)):
     db.add(transaction)
     db.commit()
     return {"message": "Deposit successful"}
+
+@app.post("/settle")
+def settle_all_bets(db: Session = Depends(get_db)):
+    success = odds_service.fetch_results(db)
+    if success:
+        return {"message": "Settlement process completed"}
+    else:
+        raise HTTPException(status_code=500, detail="Error during settlement")
+
+@app.get("/bets/ticket/{ticket_id}", response_model=schemas.BetResponse)
+def get_bet_by_ticket(ticket_id: str, db: Session = Depends(get_db)):
+    bet = db.query(models.Bet).filter(models.Bet.ticket_id == ticket_id).first()
+    if not bet:
+        raise HTTPException(status_code=404, detail="Ticket not found")
+    return bet

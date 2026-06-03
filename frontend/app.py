@@ -8,7 +8,7 @@ st.set_page_config(page_title="Sports Betting POS", layout="wide")
 
 st.title("⚽ POS Apuestas Deportivas")
 
-menu = ["Eventos", "Apuestas Realizadas", "Caja / Tickets"]
+menu = ["Eventos", "Apuestas Realizadas", "Liquidación (Settle)", "Caja / Tickets"]
 choice = st.sidebar.selectbox("Menú", menu)
 
 if choice == "Eventos":
@@ -16,6 +16,9 @@ if choice == "Eventos":
 
     try:
         events = requests.get(f"{API_URL}/events").json()
+
+        if not events:
+            st.warning("No hay eventos disponibles en este momento.")
 
         for event in events:
             with st.container():
@@ -98,6 +101,16 @@ elif choice == "Apuestas Realizadas":
     else:
         st.write("No hay apuestas registradas.")
 
+elif choice == "Liquidación (Settle)":
+    st.header("Settle de Apuestas")
+    st.write("Esto consultará los resultados oficiales y pagará las apuestas ganadoras.")
+    if st.button("Ejecutar Liquidación"):
+        res = requests.post(f"{API_URL}/settle")
+        if res.status_code == 200:
+            st.success("Liquidación completada!")
+        else:
+            st.error("Error al liquidar")
+
 elif choice == "Caja / Tickets":
     st.header("Gestión de Caja")
 
@@ -110,6 +123,24 @@ elif choice == "Caja / Tickets":
             requests.post(f"{API_URL}/deposit?amount={dep_amount}")
             st.rerun()
 
+    st.divider()
+    st.subheader("Buscador de Tickets")
+    ticket_id_input = st.text_input("Ingrese ID del Ticket")
+    if st.button("Buscar Ticket"):
+        res = requests.get(f"{API_URL}/bets/ticket/{ticket_id_input}")
+        if res.status_code == 200:
+            bet = res.json()
+            st.write(f"**Ticket:** {bet['ticket_id']}")
+            st.write(f"**Evento:** {bet['event_id']}")
+            st.write(f"**Selección:** {bet['selection']}")
+            st.write(f"**Monto:** {bet['stake']}")
+            st.write(f"**Estado:** {bet['status']}")
+            if bet['status'] == 'won':
+                st.success(f"PREMIO: {bet['potential_payout']}")
+        else:
+            st.error("Ticket no encontrado")
+
+    st.divider()
     st.subheader("Transacciones")
     transactions = requests.get(f"{API_URL}/transactions").json()
     if transactions:
