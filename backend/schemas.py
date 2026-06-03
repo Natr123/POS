@@ -11,39 +11,28 @@ class EventBase(BaseModel):
     home_team: str
     away_team: str
 
-class OddsBase(BaseModel):
-    event_id: str
-    bookmaker: str
-    market: str
-    home_price: float
-    away_price: float
-    draw_price: Optional[float] = None
-
-class BetCreate(BaseModel):
+class Selection(BaseModel):
     event_id: str
     event_name: str
     selection: str
     odds: float
+
+class BetCreate(BaseModel):
+    selections: List[Selection]
+    total_odds: float
     stake: float
 
 class BetResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
-    event_id: str
-    event_name: str
-    selection: str
-    odds: float
+    selections: List[Selection]
+    total_odds: float
     stake: float
     potential_payout: float
     status: BetStatus
     created_at: datetime
     ticket_id: str
-
-class TransactionCreate(BaseModel):
-    type: str
-    amount: float
-    description: str
 
 class TransactionResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)

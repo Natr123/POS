@@ -1,5 +1,4 @@
 from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey, Enum, JSON
-from sqlalchemy.orm import relationship
 from sqlalchemy.ext.declarative import declarative_base
 from datetime import datetime, timezone
 import enum
@@ -27,18 +26,15 @@ class Odds(Base):
     event_id = Column(String, ForeignKey("events.id"))
     bookmaker = Column(String)
     last_update = Column(DateTime)
-
-    # Store multiple markets in a JSON field for flexibility
-    # { "h2h": {"home": 2.1, "away": 1.9, "draw": 3.4}, "spreads": {...}, "totals": {...} }
     markets_data = Column(JSON)
 
 class Bet(Base):
     __tablename__ = "bets"
     id = Column(Integer, primary_key=True, index=True)
-    event_id = Column(String)
-    event_name = Column(String)
-    selection = Column(String)
-    odds = Column(Float)
+    # Changed to JSON for multiple selections
+    # [{ "event_id": "...", "event_name": "...", "selection": "...", "odds": 2.0 }]
+    selections = Column(JSON)
+    total_odds = Column(Float)
     stake = Column(Float)
     potential_payout = Column(Float)
     status = Column(Enum(BetStatus), default=BetStatus.PENDING)

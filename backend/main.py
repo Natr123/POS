@@ -18,7 +18,7 @@ from .database import engine, get_db
 
 models.Base.metadata.create_all(bind=engine)
 
-app = FastAPI(title="SportPOS Pro API")
+app = FastAPI(title="SportPOS Ultimate API")
 
 app.add_middleware(
     CORSMiddleware,
@@ -55,23 +55,26 @@ def read_odds(event_id: str, db: Session = Depends(get_db)):
 @app.post("/bets", response_model=schemas.BetResponse)
 def create_bet(bet: schemas.BetCreate, db: Session = Depends(get_db)):
     ticket_id = str(uuid.uuid4())[:8].upper()
-    potential_payout = round(bet.stake * bet.odds, 2)
+    potential_payout = round(bet.stake * bet.total_odds, 2)
 
+    # Store selections as JSON list of dicts
     db_bet = models.Bet(
-        event_id=bet.event_id,
-        event_name=bet.event_name,
-        selection=bet.selection,
-        odds=bet.odds,
+        selections=[s.dict() for s in bet.selections],
+        total_odds=bet.total_odds,
         stake=bet.stake,
         potential_payout=potential_payout,
         ticket_id=ticket_id
     )
     db.add(db_bet)
 
+    # Transaction description for combined bets
+    count = len(bet.selections)
+    desc = f"Apuesta {'Combinada ('+str(count)+')' if count > 1 else 'Simple'}: Ticket {ticket_id}"
+
     transaction = models.Transaction(
         type="bet_placed",
         amount=-bet.stake,
-        description=f"Apuesta: {bet.event_name} ({bet.selection}) - Ticket: {ticket_id}"
+        description=desc
     )
     db.add(transaction)
 
@@ -86,44 +89,61 @@ def get_bet_pdf(ticket_id: str, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Ticket no encontrado")
 
     buffer = io.BytesIO()
-    # Thermal printer standard size: 80mm width, dynamic height
     p_width = 80 * unit_mm
-    p_height = 120 * unit_mm
+    # Dynamic height based on selections
+    selections_count = len(bet.selections)
+    p_height = (100 + (selections_count * 20)) * unit_mm
     c = canvas.Canvas(buffer, pagesize=(p_width, p_height))
 
+    y = p_height - 15 * unit_mm
     c.setFont("Helvetica-Bold", 14)
-    c.drawCentredString(40 * unit_mm, 110 * unit_mm, "SPORTPOS PRO")
+    c.drawCentredString(40 * unit_mm, y, "SPORTPOS ULTIMATE")
 
+    y -= 8 * unit_mm
     c.setFont("Helvetica", 8)
-    c.drawCentredString(40 * unit_mm, 105 * unit_mm, f"TICKET: {bet.ticket_id}")
-    c.drawCentredString(40 * unit_mm, 102 * unit_mm, f"FECHA: {bet.created_at.strftime('%Y-%m-%d %H:%M:%S')}")
+    c.drawCentredString(40 * unit_mm, y, f"TICKET: {bet.ticket_id}")
+    y -= 4 * unit_mm
+    c.drawCentredString(40 * unit_mm, y, f"FECHA: {bet.created_at.strftime('%Y-%m-%d %H:%M:%S')}")
 
-    c.line(5 * unit_mm, 98 * unit_mm, 75 * unit_mm, 98 * unit_mm)
+    y -= 5 * unit_mm
+    c.line(5 * unit_mm, y, 75 * unit_mm, y)
 
+    # List Selections
+    for sel in bet.selections:
+        y -= 10 * unit_mm
+        c.setFont("Helvetica-Bold", 9)
+        c.drawString(8 * unit_mm, y, sel['event_name'][:35])
+        y -= 4 * unit_mm
+        c.setFont("Helvetica", 8)
+        c.drawString(10 * unit_mm, y, f"OPCION: {sel['selection']}")
+        c.drawRightString(70 * unit_mm, y, f"x{sel['odds']}")
+        y -= 2 * unit_mm
+        c.setDash(1, 2)
+        c.line(10 * unit_mm, y, 70 * unit_mm, y)
+        c.setDash()
+
+    y -= 10 * unit_mm
+    c.line(5 * unit_mm, y, 75 * unit_mm, y)
+
+    y -= 8 * unit_mm
     c.setFont("Helvetica-Bold", 10)
-    # Wrap text for event name if too long
-    ev_name = bet.event_name[:30] + "..." if len(bet.event_name) > 30 else bet.event_name
-    c.drawCentredString(40 * unit_mm, 92 * unit_mm, ev_name)
+    c.drawString(10 * unit_mm, y, "CUOTA TOTAL:")
+    c.drawRightString(70 * unit_mm, y, f"x{bet.total_odds:.2f}")
 
-    c.setFont("Helvetica", 9)
-    c.drawString(10 * unit_mm, 85 * unit_mm, "SELECCION:")
-    c.drawRightString(70 * unit_mm, 85 * unit_mm, bet.selection[:25])
+    y -= 6 * unit_mm
+    c.drawString(10 * unit_mm, y, "APUESTA:")
+    c.drawRightString(70 * unit_mm, y, f"${bet.stake:.2f}")
 
-    c.drawString(10 * unit_mm, 80 * unit_mm, "CUOTA:")
-    c.drawRightString(70 * unit_mm, 80 * unit_mm, f"x{bet.odds}")
+    y -= 10 * unit_mm
+    c.setFont("Helvetica-Bold", 14)
+    c.drawString(10 * unit_mm, y, "PREMIO:")
+    c.drawRightString(70 * unit_mm, y, f"${bet.potential_payout:.2f}")
 
-    c.drawString(10 * unit_mm, 75 * unit_mm, "APUESTA:")
-    c.drawRightString(70 * unit_mm, 75 * unit_mm, f"${bet.stake:.2f}")
-
-    c.setFont("Helvetica-Bold", 12)
-    c.drawString(10 * unit_mm, 65 * unit_mm, "PREMIO:")
-    c.drawRightString(70 * unit_mm, 65 * unit_mm, f"${bet.potential_payout:.2f}")
-
-    c.line(5 * unit_mm, 60 * unit_mm, 75 * unit_mm, 60 * unit_mm)
-
+    y -= 15 * unit_mm
     c.setFont("Helvetica-Oblique", 7)
-    c.drawCentredString(40 * unit_mm, 50 * unit_mm, "CONSERVE ESTE TICKET PARA COBRAR")
-    c.drawCentredString(40 * unit_mm, 46 * unit_mm, "GRACIAS POR SU PREFERENCIA")
+    c.drawCentredString(40 * unit_mm, y, "CONSERVE ESTE TICKET PARA COBRAR")
+    y -= 4 * unit_mm
+    c.drawCentredString(40 * unit_mm, y, "GRACIAS POR SU PREFERENCIA")
 
     c.showPage()
     c.save()
