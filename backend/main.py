@@ -35,7 +35,6 @@ async def startup_event():
 
 @app.get("/sports")
 def list_sports_categorized(db: Session = Depends(get_db)):
-    # Return the structure defined in odds_service
     return odds_service.SPORTS_STRUCTURE
 
 @app.get("/events", response_model=List[schemas.EventBase])
@@ -122,7 +121,13 @@ def get_bet_pdf(ticket_id: str, db: Session = Depends(get_db)):
     c.showPage()
     c.save()
     buffer.seek(0)
-    return Response(content=buffer.getvalue(), media_type="application/pdf")
+    return Response(
+        content=buffer.getvalue(),
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": f"inline; filename=ticket_{ticket_id}.pdf"
+        }
+    )
 
 @app.get("/bets", response_model=List[schemas.BetResponse])
 def read_bets(db: Session = Depends(get_db)):
