@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from datetime import datetime
 from typing import List, Optional
 from .models import BetStatus
@@ -21,13 +21,17 @@ class OddsBase(BaseModel):
 
 class BetCreate(BaseModel):
     event_id: str
+    event_name: str
     selection: str
     odds: float
     stake: float
 
 class BetResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     id: int
     event_id: str
+    event_name: str
     selection: str
     odds: float
     stake: float
@@ -36,20 +40,16 @@ class BetResponse(BaseModel):
     created_at: datetime
     ticket_id: str
 
-    class Config:
-        from_attributes = True
-
 class TransactionCreate(BaseModel):
     type: str
     amount: float
     description: str
 
 class TransactionResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     id: int
     type: str
     amount: float
     description: str
     timestamp: datetime
-
-    class Config:
-        from_attributes = True

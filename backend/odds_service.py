@@ -24,13 +24,6 @@ POPULAR_SPORTS = [
     "icehockey_nhl"
 ]
 
-# In-memory cache to speed up reads
-cache = {
-    "sports": None,
-    "odds": {}, # event_id: odds_data
-    "last_sync": None
-}
-
 async def fetch_and_update_odds(db):
     if not API_KEY:
         return False
@@ -46,37 +39,38 @@ async def fetch_and_update_odds(db):
         for response in responses:
             if isinstance(response, httpx.Response) and response.status_code == 200:
                 update_db_with_data(db, response.json())
-
-        cache["last_sync"] = datetime.now(timezone.utc)
         return True
 
 def update_db_with_data(db, data):
     for item in data:
-        commence_time = datetime.fromisoformat(item["commence_time"].replace("Z", "+00:00"))
+        try:
+            commence_time = datetime.fromisoformat(item["commence_time"].replace("Z", "+00:00"))
 
-        event = db.query(models.Event).filter(models.Event.id == item["id"]).first()
-        if not event:
-            event = models.Event(
-                id=item["id"],
-                sport_key=item["sport_key"],
-                sport_title=item["sport_title"],
-                commence_time=commence_time,
-                home_team=item["home_team"],
-                away_team=item["away_team"]
-            )
-            db.add(event)
-        else:
-            event.commence_time = commence_time
-            event.sport_title = item["sport_title"]
+            event = db.query(models.Event).filter(models.Event.id == item["id"]).first()
+            if not event:
+                event = models.Event(
+                    id=item["id"],
+                    sport_key=item["sport_key"],
+                    sport_title=item["sport_title"],
+                    commence_time=commence_time,
+                    home_team=item["home_team"],
+                    away_team=item["away_team"]
+                )
+                db.add(event)
+            else:
+                event.commence_time = commence_time
+                event.sport_title = item["sport_title"]
 
-        if item.get("bookmakers"):
-            bm = item["bookmakers"][0]
-            for market in bm["markets"]:
-                if market["key"] == "h2h":
-                    try:
-                        home_price = next(o["price"] for o in market["outcomes"] if o["name"] == item["home_team"])
-                        away_price = next(o["price"] for o in market["outcomes"] if o["name"] == item["away_team"])
+            if item.get("bookmakers"):
+                bm = item["bookmakers"][0]
+                for market in bm["markets"]:
+                    if market["key"] == "h2h":
+                        home_price = next((o["price"] for o in market["outcomes"] if o["name"] == item["home_team"]), None)
+                        away_price = next((o["price"] for o in market["outcomes"] if o["name"] == item["away_team"]), None)
                         draw_price = next((o["price"] for o in market["outcomes"] if o["name"] == "Draw"), None)
+
+                        if home_price is None or away_price is None:
+                            continue
 
                         odds = db.query(models.Odds).filter(models.Odds.event_id == item["id"]).first()
                         if not odds:
@@ -95,8 +89,8 @@ def update_db_with_data(db, data):
                             odds.away_price = away_price
                             odds.draw_price = draw_price
                             odds.last_update = datetime.now(timezone.utc)
-                    except StopIteration:
-                        continue
+        except Exception:
+            continue
     db.commit()
 
 async def fetch_results(db):
@@ -150,7 +144,7 @@ def settle_bets(db, results):
                     transaction = models.Transaction(
                         type="bet_payout",
                         amount=bet.potential_payout,
-                        description=f"Payout for bet on {event_id} - Ticket: {bet.ticket_id}"
+                        description=f"Pago Ticket Ganador: {bet.ticket_id}"
                     )
                     db.add(transaction)
                 else:

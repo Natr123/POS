@@ -14,7 +14,7 @@ class BetStatus(enum.Enum):
 
 class Event(Base):
     __tablename__ = "events"
-    id = Column(String, primary_key=True) # external_id
+    id = Column(String, primary_key=True)
     sport_key = Column(String)
     sport_title = Column(String)
     commence_time = Column(DateTime)
@@ -26,7 +26,7 @@ class Odds(Base):
     id = Column(Integer, primary_key=True, index=True)
     event_id = Column(String, ForeignKey("events.id"))
     bookmaker = Column(String)
-    market = Column(String) # h2h, etc.
+    market = Column(String)
     home_price = Column(Float)
     away_price = Column(Float)
     draw_price = Column(Float, nullable=True)
@@ -35,19 +35,20 @@ class Odds(Base):
 class Bet(Base):
     __tablename__ = "bets"
     id = Column(Integer, primary_key=True, index=True)
-    event_id = Column(String, ForeignKey("events.id"))
-    selection = Column(String) # home, away, draw
+    event_id = Column(String)
+    event_name = Column(String) # Storing for easier display
+    selection = Column(String)
     odds = Column(Float)
     stake = Column(Float)
     potential_payout = Column(Float)
     status = Column(Enum(BetStatus), default=BetStatus.PENDING)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
-    ticket_id = Column(String)
+    ticket_id = Column(String, unique=True)
 
 class Transaction(Base):
     __tablename__ = "transactions"
     id = Column(Integer, primary_key=True, index=True)
-    type = Column(String) # deposit, withdrawal, bet_placed, bet_payout
+    type = Column(String) # deposit, withdrawal, bet_placed, bet_payout, bet_cancelled
     amount = Column(Float)
     description = Column(String)
     timestamp = Column(DateTime, default=lambda: datetime.now(timezone.utc))
