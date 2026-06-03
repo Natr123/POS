@@ -39,7 +39,7 @@ function App() {
 
   const fetchSports = async () => {
     try {
-      const res = await axios.get(\`\${API_URL}/sports\`);
+      const res = await axios.get(`${API_URL}/sports`);
       setSports(res.data);
       if (res.data.length > 0 && !selectedSport) setSelectedSport(res.data[0].key);
     } catch (e) {}
@@ -47,7 +47,7 @@ function App() {
 
   const fetchBalance = async () => {
     try {
-      const res = await axios.get(\`\${API_URL}/balance\`);
+      const res = await axios.get(`${API_URL}/balance`);
       setBalance(res.data.balance);
     } catch (e) {}
   };
@@ -55,12 +55,12 @@ function App() {
   const fetchEvents = async (sportKey) => {
     setLoading(true);
     try {
-      const res = await axios.get(\`\${API_URL}/events?sport_key=\${sportKey}\`);
+      const res = await axios.get(`${API_URL}/events?sport_key=${sportKey}`);
       setEvents(res.data);
       const oddsMap = {};
       await Promise.all(res.data.map(async (ev) => {
         try {
-          const oRes = await axios.get(\`\${API_URL}/odds/\${ev.id}\`);
+          const oRes = await axios.get(`${API_URL}/odds/${ev.id}`);
           oddsMap[ev.id] = oRes.data;
         } catch (e) {}
       }));
@@ -71,14 +71,14 @@ function App() {
 
   const fetchHistory = async () => {
     try {
-      const res = await axios.get(\`\${API_URL}/bets\`);
+      const res = await axios.get(`${API_URL}/bets`);
       setHistory(res.data);
     } catch (e) {}
   };
 
   const fetchTransactions = async () => {
     try {
-      const res = await axios.get(\`\${API_URL}/transactions\`);
+      const res = await axios.get(`${API_URL}/transactions`);
       setTransactions(res.data);
     } catch (e) {}
   };
@@ -86,7 +86,7 @@ function App() {
   const placeBet = async (stake) => {
     if (!stake || stake <= 0) return;
     try {
-      const res = await axios.post(\`\${API_URL}/bets\`, {
+      const res = await axios.post(`${API_URL}/bets`, {
         event_id: betSlip.id,
         event_name: betSlip.name,
         selection: betSlip.sel,
@@ -104,7 +104,7 @@ function App() {
   const handleSettle = async () => {
     setLoading(true);
     try {
-      await axios.post(\`\${API_URL}/settle\`);
+      await axios.post(`${API_URL}/settle`);
       fetchBalance();
       fetchTransactions();
       alert('Liquidación completada');
@@ -119,7 +119,6 @@ function App() {
 
   return (
     <div className="min-h-screen bg-[#0a0a0a] text-white font-sans pb-24 selection:bg-primary/30">
-      {/* Printable Ticket Area */}
       {printTicket && (
         <div className="fixed inset-0 bg-black z-[100] flex flex-col items-center justify-center p-4 print:p-0 print:static print:bg-white print:text-black">
           <div className="bg-white text-black p-8 rounded-lg shadow-2xl w-full max-w-sm font-mono text-sm print:shadow-none print:w-full">
@@ -142,11 +141,11 @@ function App() {
             <div className="border-t border-dashed border-black pt-4 space-y-1">
               <div className="flex justify-between text-lg">
                 <span>Apuesta:</span>
-                <span className="font-bold">\${printTicket.stake.toFixed(2)}</span>
+                <span className="font-bold">${printTicket.stake.toFixed(2)}</span>
               </div>
               <div className="flex justify-between text-xl border-t border-black mt-2 pt-2">
                 <span>Premio:</span>
-                <span className="font-black">\${printTicket.potential_payout.toFixed(2)}</span>
+                <span className="font-black">${printTicket.potential_payout.toFixed(2)}</span>
               </div>
             </div>
             <div className="text-center mt-8 text-[10px] uppercase">
@@ -173,11 +172,11 @@ function App() {
            <h1 className="text-lg font-black tracking-tighter italic">SPORT<span className="text-primary">POS</span></h1>
         </div>
         <div className="flex items-center gap-3">
-          <button onClick={() => axios.post(\`\${API_URL}/refresh\`).then(() => fetchEvents(selectedSport))} className="p-2 bg-white/5 rounded-full hover:bg-white/10 transition-colors">
+          <button onClick={() => axios.post(`${API_URL}/refresh`).then(() => fetchEvents(selectedSport))} className="p-2 bg-white/5 rounded-full hover:bg-white/10 transition-colors">
             <RefreshCw size={18} className={loading ? 'animate-spin text-primary' : 'text-gray-400'}/>
           </button>
           <div className="bg-green-500/10 px-4 py-1.5 rounded-full border border-green-500/20">
-            <span className="text-green-500 font-mono font-bold text-sm">\${balance.toLocaleString(undefined, {minimumFractionDigits:2})}</span>
+            <span className="text-green-500 font-mono font-bold text-sm">${balance.toLocaleString(undefined, {minimumFractionDigits:2})}</span>
           </div>
         </div>
       </header>
@@ -190,7 +189,7 @@ function App() {
                 <button
                   key={s.key}
                   onClick={() => setSelectedSport(s.key)}
-                  className={\`px-5 py-2.5 rounded-xl whitespace-nowrap text-sm font-bold transition-all \${selectedSport === s.key ? 'bg-primary text-white shadow-lg shadow-primary/25 scale-105' : 'bg-white/5 text-gray-500 border border-white/5 hover:bg-white/10'}\`}
+                  className={`px-5 py-2.5 rounded-xl whitespace-nowrap text-sm font-bold transition-all ${selectedSport === s.key ? 'bg-primary text-white shadow-lg shadow-primary/25 scale-105' : 'bg-white/5 text-gray-500 border border-white/5 hover:bg-white/10'}`}
                 >
                   {s.title}
                 </button>
@@ -216,9 +215,9 @@ function App() {
                       <div className="flex-1 text-left font-bold text-sm">{ev.away_team}</div>
                     </div>
                     <div className="grid grid-cols-3 gap-3">
-                      <OddBtn label="LOCAL" price={odds[ev.id]?.home_price} onClick={() => setBetSlip({id: ev.id, name: \`\${ev.home_team} vs \${ev.away_team}\`, sel: ev.home_team, price: odds[ev.id]?.home_price})} />
-                      <OddBtn label="EMPATE" price={odds[ev.id]?.draw_price} onClick={() => setBetSlip({id: ev.id, name: \`\${ev.home_team} vs \${ev.away_team}\`, sel: 'Draw', price: odds[ev.id]?.draw_price})} />
-                      <OddBtn label="VISITA" price={odds[ev.id]?.away_price} onClick={() => setBetSlip({id: ev.id, name: \`\${ev.home_team} vs \${ev.away_team}\`, sel: ev.away_team, price: odds[ev.id]?.away_price})} />
+                      <OddBtn label="LOCAL" price={odds[ev.id]?.home_price} onClick={() => setBetSlip({id: ev.id, name: `${ev.home_team} vs ${ev.away_team}`, sel: ev.home_team, price: odds[ev.id]?.home_price})} />
+                      <OddBtn label="EMPATE" price={odds[ev.id]?.draw_price} onClick={() => setBetSlip({id: ev.id, name: `${ev.home_team} vs ${ev.away_team}`, sel: 'Draw', price: odds[ev.id]?.draw_price})} />
+                      <OddBtn label="VISITA" price={odds[ev.id]?.away_price} onClick={() => setBetSlip({id: ev.id, name: `${ev.home_team} vs ${ev.away_team}`, sel: ev.away_team, price: odds[ev.id]?.away_price})} />
                     </div>
                   </div>
                 ))}
@@ -240,13 +239,13 @@ function App() {
                                 <div className="text-xs text-gray-400">{bet.selection} @ {bet.odds}</div>
                             </div>
                             <div className="text-right">
-                                <div className={\`text-[10px] font-black px-2 py-0.5 rounded inline-block mb-1 \${
+                                <div className={`text-[10px] font-black px-2 py-0.5 rounded inline-block mb-1 ${
                                     bet.status === 'won' ? 'bg-green-500/20 text-green-500' :
                                     bet.status === 'lost' ? 'bg-red-500/20 text-red-500' : 'bg-gray-500/20 text-gray-500'
-                                }\`}>
+                                }`}>
                                     {bet.status.toUpperCase()}
                                 </div>
-                                <div className="font-mono font-bold text-sm">\${bet.stake} → <span className="text-primary">\${bet.potential_payout}</span></div>
+                                <div className="font-mono font-bold text-sm">${bet.stake} → <span className="text-primary">${bet.potential_payout}</span></div>
                             </div>
                         </div>
                     ))}
@@ -259,14 +258,14 @@ function App() {
                 <div className="bg-primary rounded-3xl p-8 mb-6 shadow-2xl shadow-primary/20 relative overflow-hidden">
                     <div className="absolute -right-10 -top-10 w-40 h-40 bg-white/10 rounded-full blur-3xl"></div>
                     <div className="text-white/60 text-xs font-bold uppercase tracking-widest mb-1">BALANCE TOTAL</div>
-                    <div className="text-4xl font-black mb-6 font-mono">\${balance.toLocaleString(undefined, {minimumFractionDigits:2})}</div>
+                    <div className="text-4xl font-black mb-6 font-mono">${balance.toLocaleString(undefined, {minimumFractionDigits:2})}</div>
                     <div className="flex gap-3">
                         <button onClick={handleSettle} className="flex-1 bg-white text-primary py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2">
                              LIQUIDAR
                         </button>
                         <button onClick={() => {
                             const a = prompt('Monto a depositar');
-                            if(a) axios.post(\`\${API_URL}/deposit?amount=\${a}\`).then(fetchBalance);
+                            if(a) axios.post(`${API_URL}/deposit?amount=${a}`).then(fetchBalance);
                         }} className="flex-1 bg-black/20 text-white py-3 rounded-xl font-bold text-sm border border-white/10">
                             DEPOSITAR
                         </button>
@@ -278,7 +277,7 @@ function App() {
                     {transactions.map(tx => (
                         <div key={tx.id} className="p-4 border-b border-white/5 flex items-center justify-between last:border-0">
                             <div className="flex items-center gap-3">
-                                <div className={\`p-2 rounded-full \${tx.amount > 0 ? 'bg-green-500/10 text-green-500' : 'bg-red-500/10 text-red-500'}\`}>
+                                <div className={`p-2 rounded-full ${tx.amount > 0 ? 'bg-green-500/10 text-green-500' : 'bg-red-500/10 text-red-500'}`}>
                                     {tx.amount > 0 ? <ArrowDownLeft size={16}/> : <ArrowUpRight size={16}/>}
                                 </div>
                                 <div>
@@ -286,7 +285,7 @@ function App() {
                                     <div className="text-[10px] text-gray-500">{new Date(tx.timestamp).toLocaleString()}</div>
                                 </div>
                             </div>
-                            <div className={\`font-mono font-bold \${tx.amount > 0 ? 'text-green-500' : 'text-red-500'}\`}>
+                            <div className={`font-mono font-bold ${tx.amount > 0 ? 'text-green-500' : 'text-red-500'}`}>
                                 {tx.amount > 0 ? '+' : ''}{tx.amount}
                             </div>
                         </div>
@@ -319,7 +318,7 @@ function App() {
             <div className="grid grid-cols-4 gap-3 mb-8">
               {[10, 20, 50, 100].map(v => (
                 <button key={v} onClick={() => placeBet(v)} className="py-4 bg-white/5 rounded-2xl font-black text-sm border border-white/5 active:bg-primary active:scale-95 transition-all">
-                  \${v}
+                  ${v}
                 </button>
               ))}
             </div>
@@ -359,8 +358,8 @@ function OddBtn({ label, price, onClick }) {
 
 function NavBtn({ icon, active, label, onClick }) {
   return (
-    <button onClick={onClick} className={\`flex-1 flex flex-col items-center py-2 transition-all \${active ? 'text-primary' : 'text-gray-500'}\`}>
-      <div className={\`p-2 rounded-xl transition-all \${active ? 'bg-primary/10' : ''}\`}>
+    <button onClick={onClick} className={`flex-1 flex flex-col items-center py-2 transition-all ${active ? 'text-primary' : 'text-gray-500'}`}>
+      <div className={`p-2 rounded-xl transition-all ${active ? 'bg-primary/10' : ''}`}>
         {React.cloneElement(icon, { size: 20, strokeWidth: active ? 3 : 2 })}
       </div>
       <span className="text-[8px] font-black mt-1 tracking-tighter">{label}</span>

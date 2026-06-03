@@ -36,7 +36,7 @@ class Bet(Base):
     __tablename__ = "bets"
     id = Column(Integer, primary_key=True, index=True)
     event_id = Column(String)
-    event_name = Column(String) # Storing for easier display
+    event_name = Column(String)
     selection = Column(String)
     odds = Column(Float)
     stake = Column(Float)
