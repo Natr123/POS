@@ -1,7 +1,7 @@
 from fastapi import FastAPI, Depends, HTTPException
 from sqlalchemy.orm import Session
 from sqlalchemy import func
-from typing import List
+from typing import List, Optional
 import uuid
 
 from . import models, schemas, database, odds_service
@@ -16,9 +16,17 @@ def startup_event():
     db = next(get_db())
     odds_service.fetch_and_update_odds(db)
 
+@app.get("/sports")
+def list_sports(db: Session = Depends(get_db)):
+    sports = db.query(models.Event.sport_key, models.Event.sport_title).distinct().all()
+    return [{"key": s.sport_key, "title": s.sport_title} for s in sports]
+
 @app.get("/events", response_model=List[schemas.EventBase])
-def read_events(db: Session = Depends(get_db)):
-    return db.query(models.Event).all()
+def read_events(sport_key: Optional[str] = None, db: Session = Depends(get_db)):
+    query = db.query(models.Event)
+    if sport_key:
+        query = query.filter(models.Event.sport_key == sport_key)
+    return query.all()
 
 @app.get("/odds/{event_id}")
 def read_odds(event_id: str, db: Session = Depends(get_db)):
@@ -42,7 +50,6 @@ def create_bet(bet: schemas.BetCreate, db: Session = Depends(get_db)):
     )
     db.add(db_bet)
 
-    # Record transaction
     transaction = models.Transaction(
         type="bet_placed",
         amount=-bet.stake,
@@ -92,3 +99,8 @@ def get_bet_by_ticket(ticket_id: str, db: Session = Depends(get_db)):
     if not bet:
         raise HTTPException(status_code=404, detail="Ticket not found")
     return bet
+
+@app.post("/refresh")
+def refresh_odds(db: Session = Depends(get_db)):
+    success = odds_service.fetch_and_update_odds(db)
+    return {"success": success}

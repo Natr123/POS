@@ -10,26 +10,34 @@ load_dotenv()
 API_KEY = os.getenv("THE_ODDS_API_KEY")
 BASE_URL = "https://api.the-odds-api.com/v4/sports"
 
+# Expanded list of popular sports/leagues
+POPULAR_SPORTS = [
+    "soccer_spain_la_liga",
+    "soccer_uefa_champs_league",
+    "soccer_england_league_1",
+    "soccer_italy_serie_a",
+    "soccer_germany_bundesliga",
+    "soccer_france_ligue_1",
+    "basketball_nba",
+    "baseball_mlb",
+    "americanfootball_nfl",
+    "icehockey_nhl"
+]
+
 def fetch_and_update_odds(db):
     if not API_KEY:
         print("API Key not found")
         return False
 
     try:
-        # Fetching odds for soccer_spain_la_liga as a default example,
-        # or we could fetch 'upcoming' but that might return too many events.
-        # Let's try to fetch upcoming odds for a few popular sports.
-        sports_to_fetch = ['soccer_spain_la_liga', 'soccer_uefa_champs_league', 'basketball_nba']
-
-        for sport in sports_to_fetch:
-            url = f"{BASE_URL}/{sport}/odds/?regions=eu&markets=h2h&apiKey={API_KEY}"
+        for sport in POPULAR_SPORTS:
+            url = f"{BASE_URL}/{sport}/odds/?regions=eu,us&markets=h2h&apiKey={API_KEY}"
             response = requests.get(url)
-            if response.status_code != 200:
-                print(f"Error fetching {sport}: {response.text}")
-                continue
-
-            data = response.json()
-            update_db_with_data(db, data)
+            if response.status_code == 200:
+                data = response.json()
+                update_db_with_data(db, data)
+            else:
+                print(f"Error fetching {sport}: {response.status_code}")
         return True
     except Exception as e:
         print(f"Error updating odds: {e}")
@@ -37,7 +45,6 @@ def fetch_and_update_odds(db):
 
 def update_db_with_data(db, data):
     for item in data:
-        # Parse commence time
         commence_time = datetime.fromisoformat(item["commence_time"].replace("Z", "+00:00"))
 
         event = db.query(models.Event).filter(models.Event.id == item["id"]).first()
@@ -53,10 +60,10 @@ def update_db_with_data(db, data):
             db.add(event)
         else:
             event.commence_time = commence_time
+            event.sport_title = item["sport_title"]
 
-        # We'll take the first bookmaker for simplicity in this POS demo
         if item.get("bookmakers"):
-            bm = item["bookmakers"][0] # Usually pinnacle or similar if eu region
+            bm = item["bookmakers"][0]
             for market in bm["markets"]:
                 if market["key"] == "h2h":
                     try:
@@ -87,10 +94,12 @@ def update_db_with_data(db, data):
     db.commit()
 
 def fetch_results(db):
-    # This would call the /scores endpoint or /results endpoint of the API
-    # The Odds API results/scores endpoint: /v4/sports/{sport}/scores/?daysFrom=3&apiKey={apiKey}
     try:
-        sports_to_check = ['soccer_spain_la_liga', 'soccer_uefa_champs_league', 'basketball_nba']
+        # Check results for all events currently in DB that are past their commence time
+        now = datetime.now(timezone.utc)
+        events_to_check = db.query(models.Event).filter(models.Event.commence_time < now).all()
+        sports_to_check = set(e.sport_key for e in events_to_check)
+
         for sport in sports_to_check:
             url = f"{BASE_URL}/{sport}/scores/?daysFrom=3&apiKey={API_KEY}"
             response = requests.get(url)
@@ -108,38 +117,38 @@ def settle_bets(db, results):
             continue
 
         event_id = result["id"]
-        # Find all pending bets for this event
         bets = db.query(models.Bet).filter(models.Bet.event_id == event_id, models.Bet.status == models.BetStatus.PENDING).all()
 
         if not bets:
             continue
 
-        # Determine winner
         scores = result.get("scores")
         if not scores:
             continue
 
-        home_score = next((int(s["score"]) for s in scores if s["name"] == result["home_team"]), 0)
-        away_score = next((int(s["score"]) for s in scores if s["name"] == result["away_team"]), 0)
+        try:
+            home_score = next((int(s["score"]) for s in scores if s["name"] == result["home_team"]), 0)
+            away_score = next((int(s["score"]) for s in scores if s["name"] == result["away_team"]), 0)
 
-        winner = None
-        if home_score > away_score:
-            winner = result["home_team"]
-        elif away_score > home_score:
-            winner = result["away_team"]
-        else:
-            winner = "Draw"
-
-        for bet in bets:
-            if bet.selection == winner:
-                bet.status = models.BetStatus.WON
-                # Record payout transaction
-                transaction = models.Transaction(
-                    type="bet_payout",
-                    amount=bet.potential_payout,
-                    description=f"Payout for bet on {event_id} - Ticket: {bet.ticket_id}"
-                )
-                db.add(transaction)
+            winner = None
+            if home_score > away_score:
+                winner = result["home_team"]
+            elif away_score > home_score:
+                winner = result["away_team"]
             else:
-                bet.status = models.BetStatus.LOST
+                winner = "Draw"
+
+            for bet in bets:
+                if bet.selection == winner:
+                    bet.status = models.BetStatus.WON
+                    transaction = models.Transaction(
+                        type="bet_payout",
+                        amount=bet.potential_payout,
+                        description=f"Payout for bet on {event_id} - Ticket: {bet.ticket_id}"
+                    )
+                    db.add(transaction)
+                else:
+                    bet.status = models.BetStatus.LOST
+        except Exception:
+            continue
     db.commit()
