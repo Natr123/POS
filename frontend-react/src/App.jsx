@@ -26,6 +26,19 @@ function App() {
   const [showCategoryMenu, setShowCategoryMenu] = useState(false);
   const [lastTicketId, setLastTicketId] = useState(null);
 
+  const handleSettle = async () => {
+    setLoading(true);
+    try {
+        await axios.post(`${API_URL}/settle`);
+        fetchBalance();
+        fetchHistory();
+        alert('Asentamiento completado');
+    } catch (e) {
+        alert('Error al asentar');
+    }
+    setLoading(false);
+  };
+
   useEffect(() => {
     fetchSports();
     fetchBalance();

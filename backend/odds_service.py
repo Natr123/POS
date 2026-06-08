@@ -8,7 +8,7 @@ import json
 
 load_dotenv()
 
-API_KEY = "f4a36203d2cc6f02f05585aa63cab60e07279662525eb7016f6f07e2e58a1ff1"
+API_KEY = os.getenv("THE_ODDS_API_KEY", "f4a36203d2cc6f02f05585aa63cab60e07279662525eb7016f6f07e2e58a1ff1")
 BASE_URL = "https://api.odds-api.io/v3"
 
 # Bookmakers to use for odds

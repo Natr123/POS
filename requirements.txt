@@ -5,3 +5,5 @@ pydantic
 requests
 streamlit
 python-dotenv
+httpx
+reportlab
