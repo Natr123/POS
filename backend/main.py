@@ -31,33 +31,42 @@ app.add_middleware(
 @app.on_event("startup")
 async def startup_event():
     db = next(get_db())
-    # Full sync on startup
     asyncio.create_task(odds_service.fetch_and_update_odds(db))
 
 @app.get("/sports")
 def list_sports_categorized(db: Session = Depends(get_db)):
-    # Fetch all sports from DB grouped by 'group'
-    # Only return structure for active ones, but we have all
+    # Group sports and their leagues
     sports = db.query(models.Sport).all()
     structure = {}
     for s in sports:
-        if s.group not in structure:
-            structure[s.group] = []
-        # Return [key, title, active]
-        structure[s.group].append([s.key, s.title, s.active])
+        leagues = db.query(models.League).filter(models.League.sport_slug == s.slug, models.League.events_count > 0).all()
+        if leagues:
+            structure[s.name] = [[l.slug, l.name, True] for l in leagues]
     return structure
 
 @app.get("/events", response_model=List[schemas.EventBase])
-def read_events(sport_key: Optional[str] = None, db: Session = Depends(get_db)):
+def read_events(league_slug: Optional[str] = None, db: Session = Depends(get_db)):
     query = db.query(models.Event).filter(models.Event.commence_time > datetime.now(timezone.utc))
-    if sport_key:
-        query = query.filter(models.Event.sport_key == sport_key)
-    return query.order_by(models.Event.commence_time.asc()).all()
+    if league_slug:
+        query = query.filter(models.Event.league_slug == league_slug)
+    # Correct mapping for schemas.EventBase
+    events = query.order_by(models.Event.commence_time.asc()).all()
+    # Pydantic will handle field mapping if we help it
+    return [
+        {
+            "id": ev.id,
+            "sport_key": ev.sport_slug, # mapped to sport_key for frontend
+            "sport_title": ev.league_slug,
+            "commence_time": ev.commence_time,
+            "home_team": ev.home_team,
+            "away_team": ev.away_team
+        } for ev in events
+    ]
 
 @app.get("/odds/{event_id}")
 def read_odds(event_id: str, db: Session = Depends(get_db)):
     odds = db.query(models.Odds).filter(models.Odds.event_id == event_id).first()
-    if not odds: raise HTTPException(status_code=404, detail="Odds not found")
+    if not odds: return {}
     return odds.markets_data
 
 @app.post("/bets", response_model=schemas.BetResponse)
@@ -92,7 +101,7 @@ def get_bet_pdf(ticket_id: str, db: Session = Depends(get_db)):
     c = canvas.Canvas(buffer, pagesize=(p_width, p_height))
     y = p_height - 15 * unit_mm
     c.setFont("Helvetica-Bold", 14)
-    c.drawCentredString(40 * unit_mm, y, "SPORTPOS ULTIMATE")
+    c.drawCentredString(40 * unit_mm, y, "SPORTPOS PRO")
     y -= 8 * unit_mm
     c.setFont("Helvetica", 8)
     c.drawCentredString(40 * unit_mm, y, f"TICKET: {bet.ticket_id}")

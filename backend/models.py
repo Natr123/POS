@@ -14,21 +14,25 @@ class BetStatus(enum.Enum):
 
 class Sport(Base):
     __tablename__ = "sports"
-    key = Column(String, primary_key=True)
-    group = Column(String) # Soccer, Basketball, etc.
-    title = Column(String)
-    description = Column(String)
-    active = Column(Boolean)
-    has_outrights = Column(Boolean)
+    slug = Column(String, primary_key=True)
+    name = Column(String)
+
+class League(Base):
+    __tablename__ = "leagues"
+    slug = Column(String, primary_key=True)
+    name = Column(String)
+    sport_slug = Column(String, ForeignKey("sports.slug"))
+    events_count = Column(Integer, default=0)
 
 class Event(Base):
     __tablename__ = "events"
     id = Column(String, primary_key=True)
-    sport_key = Column(String, ForeignKey("sports.key"))
-    sport_title = Column(String)
+    sport_slug = Column(String, ForeignKey("sports.slug"))
+    league_slug = Column(String, ForeignKey("leagues.slug"))
     commence_time = Column(DateTime)
     home_team = Column(String)
     away_team = Column(String)
+    status = Column(String)
 
 class Odds(Base):
     __tablename__ = "odds"

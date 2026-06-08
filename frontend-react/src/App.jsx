@@ -11,7 +11,7 @@ const API_URL = `http://${window.location.hostname}:8000`;
 function App() {
   const [activeTab, setActiveTab] = useState('events');
   const [sportsStructure, setSportsStructure] = useState({});
-  const [selectedSportKey, setSelectedSportKey] = useState(null);
+  const [selectedLeagueKey, setSelectedLeagueKey] = useState(null);
   const [selectedCategory, setSelectedCategory] = useState(null);
   const [events, setEvents] = useState([]);
   const [odds, setOdds] = useState({});
@@ -19,7 +19,6 @@ function App() {
   const [loading, setLoading] = useState(false);
   const [history, setHistory] = useState([]);
   const [transactions, setTransactions] = useState([]);
-
   const [selections, setSelections] = useState([]);
   const [showSlipModal, setShowSlipModal] = useState(false);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
@@ -33,8 +32,8 @@ function App() {
   }, []);
 
   useEffect(() => {
-    if (selectedSportKey) fetchEvents(selectedSportKey);
-  }, [selectedSportKey]);
+    if (selectedLeagueKey) fetchEvents(selectedLeagueKey);
+  }, [selectedLeagueKey]);
 
   useEffect(() => {
     if (activeTab === 'tickets') fetchHistory();
@@ -44,18 +43,11 @@ function App() {
   const fetchSports = async () => {
     try {
       const res = await axios.get(`${API_URL}/sports`);
-      // Backend returns { "Category": [[key, title, active], ...] }
       setSportsStructure(res.data);
-
-      // Select first active category and sport
-      const categories = Object.keys(res.data);
-      for (const cat of categories) {
-          const activeInCat = res.data[cat].filter(s => s[2]); // s[2] is 'active'
-          if (activeInCat.length > 0) {
-              setSelectedCategory(cat);
-              setSelectedSportKey(activeInCat[0][0]);
-              break;
-          }
+      const firstCat = Object.keys(res.data)[0];
+      if (firstCat) {
+        setSelectedCategory(firstCat);
+        setSelectedLeagueKey(res.data[firstCat][0][0]);
       }
     } catch (e) {}
   };
@@ -67,10 +59,10 @@ function App() {
     } catch (e) {}
   };
 
-  const fetchEvents = async (sportKey) => {
+  const fetchEvents = async (leagueSlug) => {
     setLoading(true);
     try {
-      const res = await axios.get(`${API_URL}/events?sport_key=${sportKey}`);
+      const res = await axios.get(`${API_URL}/events?league_slug=${leagueSlug}`);
       setEvents(res.data);
       const oddsMap = {};
       await Promise.all(res.data.map(async (ev) => {
@@ -125,33 +117,21 @@ function App() {
     } catch (e) { alert('Error al apostar'); }
   };
 
-  const activeLeagues = useMemo(() => {
-      if (!selectedCategory || !sportsStructure[selectedCategory]) return [];
-      return sportsStructure[selectedCategory].filter(s => s[2]); // Filter active
-  }, [selectedCategory, sportsStructure]);
-
-  const activeCategories = useMemo(() => {
-      return Object.keys(sportsStructure).filter(cat => sportsStructure[cat].some(s => s[2]));
-  }, [sportsStructure]);
-
   return (
     <div className="min-h-screen bg-[#050505] text-gray-200 font-sans pb-32 selection:bg-blue-600/30 antialiased overflow-x-hidden">
       <div className="max-w-4xl mx-auto px-4">
+
         <header className="py-4 md:py-6 flex justify-between items-center sticky top-0 bg-[#050505]/95 backdrop-blur-xl z-50 border-b border-white/[0.03]">
             <div className="flex items-center gap-3">
-                <button onClick={() => setShowCategoryMenu(true)} className="p-2.5 bg-white/5 rounded-xl border border-white/5">
-                    <Menu size={20} className="text-blue-500" />
-                </button>
+                <button onClick={() => setShowCategoryMenu(true)} className="p-2.5 bg-white/5 rounded-xl border border-white/5"><Menu size={20} className="text-blue-500" /></button>
                 <span className="text-lg font-black tracking-tight uppercase italic leading-none">SPORT<span className="text-blue-500">POS</span></span>
             </div>
             <div className="flex items-center gap-3">
-                <button onClick={() => axios.post(`${API_URL}/refresh`).then(() => fetchEvents(selectedSportKey))} className="p-2.5 bg-white/5 rounded-full border border-white/5">
+                <button onClick={() => axios.post(`${API_URL}/refresh`).then(() => fetchEvents(selectedLeagueKey))} className="p-2.5 bg-white/5 rounded-full border border-white/5">
                     <RefreshCw size={18} className={loading ? 'animate-spin text-blue-500' : 'text-gray-400'} />
                 </button>
                 <div className="bg-green-500/10 border border-green-500/20 px-4 py-2 rounded-2xl">
-                    <span className="text-green-500 font-mono font-black text-base italic">
-                        ${balance.toLocaleString(undefined, {minimumFractionDigits:2})}
-                    </span>
+                    <span className="text-green-500 font-mono font-black text-base italic">${balance.toLocaleString(undefined, {minimumFractionDigits:2})}</span>
                 </div>
             </div>
         </header>
@@ -159,24 +139,26 @@ function App() {
         <main className="mt-6">
             {activeTab === 'events' && (
                 <div className="space-y-6">
-                    <div className="flex gap-2 overflow-x-auto pb-4 no-scrollbar scroll-smooth">
-                        {activeLeagues.map(([key, name]) => (
-                            <button
-                                key={key}
-                                onClick={() => setSelectedSportKey(key)}
-                                className={`px-6 py-3 rounded-2xl text-xs font-black transition-all border whitespace-nowrap ${
-                                    selectedSportKey === key
-                                    ? 'bg-blue-600 text-white border-blue-600 shadow-xl shadow-blue-600/30 scale-105'
-                                    : 'bg-white/5 text-gray-500 border-white/5'
-                                }`}
-                            >
-                                {name}
-                            </button>
-                        ))}
-                    </div>
+                    {selectedCategory && (
+                        <div className="flex gap-2 overflow-x-auto pb-4 no-scrollbar scroll-smooth">
+                            {sportsStructure[selectedCategory]?.map(([key, name]) => (
+                                <button
+                                    key={key}
+                                    onClick={() => setSelectedLeagueKey(key)}
+                                    className={`px-6 py-3 rounded-2xl text-xs font-black transition-all border whitespace-nowrap ${
+                                        selectedLeagueKey === key
+                                        ? 'bg-blue-600 text-white border-blue-600 shadow-xl shadow-blue-600/30 scale-105'
+                                        : 'bg-white/5 text-gray-500 border-white/5'
+                                    }`}
+                                >
+                                    {name}
+                                </button>
+                            ))}
+                        </div>
+                    )}
 
                     {loading ? (
-                        <div className="flex flex-col items-center justify-center py-32 opacity-20"><RefreshCw size={48} className="animate-spin text-blue-500 mb-4" /><span className="text-[10px] font-black uppercase tracking-widest">Cargando...</span></div>
+                        <div className="flex flex-col items-center justify-center py-32 opacity-20"><RefreshCw size={48} className="animate-spin text-blue-500 mb-4" /><span className="text-[10px] font-black uppercase tracking-widest">Sincronizando...</span></div>
                     ) : (
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             {events.map(ev => (
@@ -192,7 +174,7 @@ function App() {
                                     </div>
                                     <div className="text-center space-y-1 mb-8">
                                         <div className="font-black text-sm uppercase tracking-tight text-white/90">{ev.home_team}</div>
-                                        <div className="text-blue-600/40 text-[9px] font-black italic">VERSUS</div>
+                                        <div className="text-blue-600/40 text-[9px] font-black italic uppercase">VS</div>
                                         <div className="font-black text-sm uppercase tracking-tight text-white/90">{ev.away_team}</div>
                                     </div>
                                     <div className="space-y-4">
@@ -220,22 +202,21 @@ function App() {
                                     </div>
                                 </div>
                             ))}
+                            {events.length === 0 && <div className="col-span-full py-32 text-center text-gray-700 font-black italic border border-dashed border-white/5 rounded-[3rem]">No hay eventos activos.</div>}
                         </div>
                     )}
                 </div>
             )}
 
             {activeTab === 'tickets' && (
-                <div className="animate-in slide-in-from-right duration-300 max-w-lg mx-auto pb-10">
-                    <h2 className="text-2xl font-black mb-8 italic tracking-tighter uppercase">Historial</h2>
+                <div className="animate-in slide-in-from-right duration-300 max-w-lg mx-auto">
+                    <h2 className="text-2xl font-black mb-8 italic tracking-tighter uppercase leading-none">Historial</h2>
                     <div className="space-y-4">
                         {history.map(bet => (
-                            <div key={bet.id} className="bg-[#111] p-6 rounded-[2.5rem] border border-white/5 flex flex-col gap-4 shadow-xl group">
+                            <div key={bet.id} className="bg-[#111] p-6 rounded-[2.5rem] border border-white/5 flex flex-col gap-4 shadow-xl">
                                 <div className="flex justify-between items-center">
                                     <span className="text-[10px] font-black text-gray-600">ID: {bet.ticket_id}</span>
-                                    <a href={`${API_URL}/bets/${bet.ticket_id}/pdf`} target="_blank" rel="noreferrer" className="p-2.5 bg-blue-600/10 text-blue-500 rounded-full transition-all hover:bg-blue-600 hover:text-white">
-                                        <Printer size={14}/>
-                                    </a>
+                                    <a href={`${API_URL}/bets/${bet.ticket_id}/pdf`} target="_blank" rel="noreferrer" className="p-2.5 bg-blue-600/10 text-blue-500 rounded-full transition-all hover:bg-blue-600 hover:text-white"><Printer size={14}/></a>
                                 </div>
                                 <div className="space-y-2">
                                     {bet.selections.map((s, i) => (
@@ -265,11 +246,11 @@ function App() {
                                 ${balance.toLocaleString(undefined, {minimumFractionDigits:2})}
                             </div>
                             <div className="grid grid-cols-2 gap-4 px-4">
-                                <button onClick={handleSettle} className="bg-white text-blue-800 py-4 rounded-3xl font-black text-xs uppercase tracking-widest hover:bg-blue-50 transition-all active:scale-95 shadow-xl">Settle</button>
+                                <button onClick={handleSettle} className="bg-white text-blue-800 py-4 rounded-3xl font-black text-xs uppercase tracking-widest active:scale-95 shadow-xl">Settle</button>
                                 <button onClick={() => {
                                     const a = prompt('Monto del depósito:');
                                     if(a) axios.post(`${API_URL}/deposit?amount=${a}`).then(fetchBalance);
-                                }} className="bg-black/20 text-white py-4 rounded-3xl font-black text-xs border border-white/10 backdrop-blur-md uppercase tracking-widest hover:bg-black/30 transition-all active:scale-95">Carga</button>
+                                }} className="bg-black/20 text-white py-4 rounded-3xl font-black text-xs border border-white/10 backdrop-blur-md active:scale-95 uppercase tracking-widest">Carga</button>
                             </div>
                         </div>
                     </div>
@@ -295,7 +276,6 @@ function App() {
             )}
         </main>
 
-        {/* Category Drawer */}
         {showCategoryMenu && (
             <div className="fixed inset-0 bg-black/98 backdrop-blur-3xl z-[100] p-8 animate-in fade-in duration-300 overflow-y-auto">
                 <div className="flex justify-between items-center mb-10">
@@ -303,10 +283,10 @@ function App() {
                     <button onClick={() => setShowCategoryMenu(false)} className="p-4 bg-white/5 rounded-full"><X size={24}/></button>
                 </div>
                 <div className="grid grid-cols-1 gap-3 max-w-md mx-auto">
-                    {activeCategories.map(cat => (
+                    {Object.keys(sportsStructure).filter(cat => sportsStructure[cat].some(s => s[2])).map(cat => (
                         <button
                             key={cat}
-                            onClick={() => { setSelectedCategory(cat); setSelectedSportKey(sportsStructure[cat].filter(s => s[2])[0][0]); setShowCategoryMenu(false); }}
+                            onClick={() => { setSelectedCategory(cat); setSelectedLeagueKey(sportsStructure[cat].filter(s => s[2])[0][0]); setShowCategoryMenu(false); }}
                             className={`p-6 rounded-[2rem] border text-left flex justify-between items-center transition-all ${
                                 selectedCategory === cat ? 'bg-blue-600 border-blue-600 text-white shadow-glow' : 'bg-white/5 border-white/5 text-gray-400'
                             }`}
@@ -319,24 +299,19 @@ function App() {
             </div>
         )}
 
-        {/* Floating Slip Button */}
         {selections.length > 0 && activeTab === 'events' && (
-            <button
-                onClick={() => setShowSlipModal(true)}
-                className="fixed bottom-28 left-1/2 -translate-x-1/2 bg-blue-600 text-white px-8 py-5 rounded-full font-black shadow-glow flex items-center gap-4 animate-in slide-in-from-bottom duration-500 active:scale-90 z-40"
-            >
+            <button onClick={() => setShowSlipModal(true)} className="fixed bottom-28 left-1/2 -translate-x-1/2 bg-blue-600 text-white px-8 py-5 rounded-full font-black shadow-glow flex items-center gap-4 animate-in slide-in-from-bottom duration-500 active:scale-90 z-40">
                 <div className="bg-white text-blue-600 w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold shadow-lg">{selections.length}</div>
                 REVISAR JUGADA
                 <div className="bg-black/20 px-3 py-1 rounded-full text-xs font-mono">x{totalOdds}</div>
             </button>
         )}
 
-        {/* Slip Modal */}
         {showSlipModal && (
             <div className="fixed inset-0 bg-black/95 backdrop-blur-md z-[110] flex items-end animate-in fade-in duration-300">
                 <div className="w-full max-w-xl mx-auto bg-[#121212] rounded-t-[3.5rem] p-10 border-t border-white/10 shadow-2xl animate-in slide-in-from-bottom duration-500">
                     <div className="flex justify-between items-center mb-8">
-                        <h2 className="text-2xl font-black italic tracking-tighter uppercase">Cupón</h2>
+                        <h2 className="text-2xl font-black italic tracking-tighter uppercase leading-none">Cupón</h2>
                         <button onClick={() => setShowSlipModal(false)} className="p-3 bg-white/5 rounded-full"><X size={20}/></button>
                     </div>
                     <div className="max-h-[35vh] overflow-y-auto no-scrollbar space-y-3 mb-8">
@@ -353,10 +328,7 @@ function App() {
                             </div>
                         ))}
                     </div>
-                    <div className="bg-blue-600/10 p-6 rounded-3xl border border-blue-600/20 mb-8 flex justify-between items-center shadow-lg">
-                        <span className="text-[10px] font-black text-blue-500 uppercase tracking-widest">CUOTA TOTAL</span>
-                        <span className="text-4xl font-black italic font-mono text-blue-500 tracking-tighter">x{totalOdds}</span>
-                    </div>
+                    <div className="bg-blue-600/10 p-6 rounded-3xl border border-blue-600/20 mb-8 flex justify-between items-center shadow-lg"><span className="text-[10px] font-black text-blue-500 uppercase tracking-widest">CUOTA TOTAL</span><span className="text-4xl font-black italic font-mono text-blue-500 tracking-tighter">x{totalOdds}</span></div>
                     <div className="space-y-4">
                         <input type="number" value={stake} onChange={e => setStake(e.target.value)} placeholder="MONTO DE APUESTA ($)" className="w-full bg-white/5 border border-white/10 rounded-3xl p-5 text-2xl font-black font-mono text-center text-white focus:border-blue-600 outline-none transition-all placeholder:text-gray-800" />
                         <button onClick={placeBet} className="w-full py-6 bg-blue-600 rounded-3xl font-black text-2xl shadow-glow active:scale-95 transition-all uppercase italic">Confirmar Apuesta</button>
@@ -365,13 +337,10 @@ function App() {
             </div>
         )}
 
-        {/* Success Modal */}
         {lastTicketId && (
             <div className="fixed inset-0 bg-[#000]/98 backdrop-blur-3xl z-[200] flex flex-col items-center justify-center p-8 animate-in fade-in zoom-in duration-300 text-center">
-                <div className="bg-blue-600/10 w-24 h-24 rounded-full flex items-center justify-center mb-8 border border-blue-600/20 shadow-glow-blue">
-                    <Check className="text-blue-500" size={48} strokeWidth={3}/>
-                </div>
-                <h2 className="text-3xl font-black italic uppercase tracking-tighter mb-2">Apuesta Registrada</h2>
+                <div className="bg-blue-600/10 w-24 h-24 rounded-full flex items-center justify-center mb-8 border border-blue-600/20 shadow-glow-blue"><Check className="text-blue-500" size={48} strokeWidth={3}/></div>
+                <h2 className="text-3xl font-black italic uppercase tracking-tighter mb-2 leading-none">Apuesta Registrada</h2>
                 <p className="text-gray-500 font-bold uppercase tracking-widest text-[10px] mb-12">Ticket ID: {lastTicketId}</p>
                 <div className="flex flex-col gap-4 w-full max-w-xs">
                     <a href={`${API_URL}/bets/${lastTicketId}/pdf`} target="_blank" rel="noreferrer" className="w-full py-6 bg-blue-600 rounded-3xl font-black text-xl flex items-center justify-center gap-3 shadow-glow transition-all active:scale-95"><Printer size={24}/> IMPRIMIR TICKET</a>
@@ -380,7 +349,6 @@ function App() {
             </div>
         )}
 
-        {/* Navbar */}
         <nav className="fixed bottom-6 left-6 right-6 flex justify-center z-40 pointer-events-none">
             <div className="bg-[#1a1a1a]/90 backdrop-blur-2xl border border-white/5 rounded-3xl p-2 flex gap-1 shadow-black/80 shadow-2xl pointer-events-auto">
                 <NavBtn icon={<LayoutGrid />} active={activeTab === 'events'} label="JUGAR" onClick={() => setActiveTab('events')} />
