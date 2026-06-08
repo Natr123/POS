@@ -8,7 +8,7 @@ import json
 
 load_dotenv()
 
-API_KEY = "2e5fa03c199ce594cc93f00930cae020"
+API_KEY = "f4a36203d2cc6f02f05585aa63cab60e07279662525eb7016f6f07e2e58a1ff1"
 BASE_URL = "https://api.odds-api.io/v3"
 
 # Bookmakers to use for odds
